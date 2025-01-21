@@ -88,7 +88,7 @@ export const uploadVideo = (req, res) => {
           `-b:v ${quality.bitrate}`,
           `-maxrate:v ${quality.maxrate}`,
           `-bufsize:v ${quality.bufsize}`,
-          "-hls_time 10",
+          "-hls_time 5",
           "-hls_playlist_type vod",
           `-hls_segment_filename ${path.join(outputPath, quality.segments)}`,
         ]);
@@ -150,64 +150,70 @@ export const uploadVideo = (req, res) => {
 export const get_video = async (req, res) => {
   try {
     const videoId = req.params.id;
-    const videoPath = path.join(outputDir, videoId, "master.m3u8");
+    const fileName = req.params.filename;  // Handle different file names dynamically
+
+    const videoPath = path.join(outputDir, videoId, fileName);
 
     if (fs.existsSync(videoPath)) {
-      const contentType =
-        mime.getType(videoPath) || "application/vnd.apple.mpegurl";
+      const contentType = mime.getType(videoPath) || 'application/octet-stream';
 
-      res.setHeader("Content-Type", contentType);
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'no-cache');
+
       res.sendFile(videoPath, (err) => {
         if (err) {
-          console.error("Error sending file:", err);
-          res
-            .status(500)
-            .json({ success: false, message: "Error serving the file" });
+          console.error('Error sending file:', err);
+          res.status(500).json({ success: false, message: 'Error serving the file' });
         }
       });
     } else {
       res.status(404).json({
         success: false,
-        message: "Playlist not found",
+        message: 'File not found',
       });
     }
   } catch (err) {
-    console.error("Error fetching video:", err);
+    console.error('Error fetching video:', err);
     res.status(400).json({
       success: false,
       message: err.message,
     });
   }
 };
-export const video = async (req, res) => {
+
+export const get_m3u8 = async (req, res) => {
   try {
     const videoId = req.params.id;
+    const fileName = req.params.filename;  // Handle different file names dynamically
+
     const videoPath = path.join(outputDir, videoId, "master.m3u8");
 
     if (fs.existsSync(videoPath)) {
-      const contentType =
-        mime.getType(videoPath) || "application/vnd.apple.mpegurl";
+      const contentType = mime.getType(videoPath) || 'application/octet-stream';
 
-      res.setHeader("Content-Type", contentType);
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
       res.sendFile(videoPath, (err) => {
         if (err) {
-          console.error("Error sending file:", err);
-          res
-            .status(500)
-            .json({ success: false, message: "Error serving the file" });
+          console.error('Error sending file:', err);
+          res.status(500).json({ success: false, message: 'Error serving the file' });
         }
       });
     } else {
       res.status(404).json({
         success: false,
-        message: "Playlist not found",
+        message: 'File not found',
       });
     }
   } catch (err) {
-    console.error("Error fetching video:", err);
+    console.error('Error fetching video:', err);
     res.status(400).json({
       success: false,
       message: err.message,
     });
   }
-};
+}

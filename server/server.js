@@ -30,11 +30,12 @@ app.use((req, res, next) => {
   next();
 });
 
-
 app.use(cors({
-  origin: "http://localhost:3000", // Allow only this origin
+  origin: "http://localhost:3000",
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
 
 app.use((req, res, next) => {
   res.setHeader("Accept-Ranges", "bytes");

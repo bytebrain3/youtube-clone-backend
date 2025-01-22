@@ -9,5 +9,5 @@ const router = express.Router()
 
 router.post('/upload',uploadVideo);
 router.get('/get-video/:id/:filename', get_video);
-router.get("/get-masterFile/:id",get_m3u8);
+router.get("/get-masterFile/:id/master.m3u8",get_m3u8);
 export default router

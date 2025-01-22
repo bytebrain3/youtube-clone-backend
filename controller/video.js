@@ -48,14 +48,14 @@ export const uploadVideo = (req, res) => {
         segments: "360p_%03d.ts",
       },
       {
-        resolution: "854x480",
-        bitrate: "1400k",
-        maxrate: "1498k",
-        bufsize: "2100k",
-        file: "480p.m3u8",
-        name: "480",
-        segments: "480p_%03d.ts",
-      },
+        "resolution": "740x420",
+        "bitrate": "1200k",
+        "maxrate": "1298k",
+        "bufsize": "1800k",
+        "file": "420p.m3u8",
+        "name": "420",
+        "segments": "420p_%03d.ts"
+      },      
       {
         resolution: "1280x720",
         bitrate: "2800k",
@@ -102,15 +102,12 @@ export const uploadVideo = (req, res) => {
 
         // Generate the master.m3u8 file
         const masterPlaylistPath = path.join(outputPath, "master.m3u8");
-        let filePath = outputPath.split("backend")[1];
         const masterPlaylistContent = qualities
           .map(
             (quality) =>
               `#EXT-X-STREAM-INF:BANDWIDTH=${
                 parseInt(quality.bitrate) * 1000
-              },RESOLUTION=${quality.resolution}\n${filePath}${quality.name}${
-                quality.file
-              }`
+              },RESOLUTION=${quality.resolution}\n${quality.file}`
           )
           .join("\n");
 

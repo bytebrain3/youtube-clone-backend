@@ -315,7 +315,6 @@ export const uploadVideoWithoutSocket = (req, res) => {
       });
     }
 
-    
 
     const folderId = uuidv4();
     const outputPath = path.join(outputDir, folderId);

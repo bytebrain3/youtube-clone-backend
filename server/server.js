@@ -34,6 +34,8 @@ app.use((req, res, next) => {
 
 
 
+
+
 app.use(express.static(path.join(__dirname, '../uploads')));
 app.use(express.static(path.join(__dirname, "../output")));
 app.use(cors({

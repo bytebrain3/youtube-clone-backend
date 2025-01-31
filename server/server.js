@@ -21,20 +21,36 @@ if (!fs.existsSync(outputDir)) {
 }
 
 import videoRouter from "../router/route.video.js"
+import imageRouter from "../router/route.image.js"
+import { app, httpServer } from "./app.js"
 
-const app = express();
+
 const port = process.env.PORT || 3000;
-app.use("/output", express.static(path.join(__dirname, "output")));
 app.use((req, res, next) => {
   console.log("Request to static path:", req.originalUrl);
   next();
 });
 
+
+
+
+app.use(express.static(path.join(__dirname, '../uploads')));
+app.use(express.static(path.join(__dirname, "../output")));
 app.use(cors({
-  origin: "http://localhost:3000",
+  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ["http://localhost:3000"],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers'
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range', 'Content-Disposition'],
+  maxAge: 86400 // 24 hours
 }));
 
 app.use((req, res, next) => {
@@ -49,15 +65,14 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.use('/api/v1/video/',videoRouter)
+app.use('/api/v1/image/',imageRouter)
 
-app.use(videoRouter)
 
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "healthy" });
 });
 
-app.listen(port, () => {
+httpServer.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });

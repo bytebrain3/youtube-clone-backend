@@ -4,7 +4,7 @@ import ffmpeg from "fluent-ffmpeg";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-
+import { io } from "../server/app.js";
 import mime from "mime";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,18 +16,28 @@ if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true });
 }
 
+// Add this utility function at the top of the file
+const formatDuration = (durationInSeconds) => {
+  const hours = Math.floor(durationInSeconds / 3600);
+  const minutes = Math.floor((durationInSeconds % 3600) / 60);
+  const seconds = Math.floor(durationInSeconds % 60);
+
+  return {
+    hours,
+    minutes,
+    seconds,
+    formatted: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  };
+};
+
 export const uploadVideo = (req, res) => {
-  const folderId = uuidv4();
-  req.folderId = folderId;
+  // Configure upload middleware first
+  const uploadMiddleware = upload.single("video");
+  let duration = 0;
 
-  const outputPath = path.join(outputDir, folderId);
-
-  if (!fs.existsSync(outputPath)) {
-    fs.mkdirSync(outputPath, { recursive: true });
-  }
-
-  upload.single("video")(req, res, (err) => {
+  uploadMiddleware(req, res, async (err) => {
     if (err) {
+      console.error("Upload error:", err);
       return res.status(400).json({ message: err.message });
     }
 
@@ -35,8 +45,40 @@ export const uploadVideo = (req, res) => {
       return res.status(400).json({ message: "No file uploaded." });
     }
 
-    console.log("Uploaded file path:", req.file.path);
+    // Get video duration first
+    try {
+      const metadata = await new Promise((resolve, reject) => {
+        ffmpeg.ffprobe(req.file.path, (err, metadata) => {
+          if (err) reject(err);
+          else resolve(metadata);
+        });
+      });
+      
+      const rawDuration = metadata.format.duration;
+      duration = formatDuration(rawDuration);
+      console.log("Video duration:", duration.formatted);
+    } catch (error) {
+      console.error("Error getting video metadata:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error getting video metadata",
+      });
+    }
 
+    // Access socketId after middleware has processed the request
+    if (!req.body.socketId) {
+      return res.status(400).json({ message: "Socket ID is required" });
+    }
+
+    const folderId = req.body.socketId;
+    const outputPath = path.join(outputDir, folderId);
+
+    // Create output directory if it doesn't exist
+    if (!fs.existsSync(outputPath)) {
+      fs.mkdirSync(outputPath, { recursive: true });
+    }
+
+    // Rest of your existing code...
     const qualities = [
       {
         resolution: "640x360",
@@ -75,7 +117,7 @@ export const uploadVideo = (req, res) => {
         segments: "1080p_%03d.ts",
       },
     ];
-
+    
     const ffmpegCommand = ffmpeg(req.file.path);
 
     qualities.forEach((quality) => {
@@ -88,18 +130,20 @@ export const uploadVideo = (req, res) => {
           `-b:v ${quality.bitrate}`,
           `-maxrate:v ${quality.maxrate}`,
           `-bufsize:v ${quality.bufsize}`,
-          "-hls_time 5",
+          "-hls_time 2",
           "-hls_playlist_type vod",
           `-hls_segment_filename ${path.join(outputPath, quality.segments)}`,
         ]);
     });
 
     ffmpegCommand
-      .on("start", (cmd) => console.log("FFmpeg command:", cmd))
-      .on("stderr", (stderrLine) => console.log("FFmpeg stderr:", stderrLine))
+      //.on("start", (cmd) => console.log("FFmpeg command:", cmd))  
+      /*ffmpeg -i D:\project\personal\youtube\backend\uploads\3f01406d-72e9-44bf-b6d4-54c369365c37\Screen Recording 2025-01-24 134843.mp4 -y -acodec aac -vcodec libx264 -filter:v scale=w=640:h=360 -b:v 800k -maxrate:v 856k -bufsize:v 1200k -hls_time 5 -hls_playlist_type vod -hls_segment_filename D:\project\personal\youtube\backend\output\3f01406d-72e9-44bf-b6d4-54c369365c37\360p_%03d.ts D:\project\personal\youtube\backend\output\3f01406d-72e9-44bf-b6d4-54c369365c37\360p.m3u8 -acodec aac -vcodec libx264 -filter:v scale=w=740:h=420 -b:v 1200k -maxrate:v 1298k -bufsize:v 1800k -hls_time 5 -hls_playlist_type vod -hls_segment_filename D:\project\personal\youtube\backend\output\3f01406d-72e9-44bf-b6d4-54c369365c37\420p_%03d.ts D:\project\personal\youtube\backend\output\3f01406d-72e9-44bf-b6d4-54c369365c37\420p.m3u8 -acodec aac -vcodec libx264 -filter:v scale=w=1280:h=720 -b:v 2800k -maxrate:v 2996k -bufsize:v 4200k -hls_time 5 -hls_playlist_type vod -hls_segment_filename D:\project\personal\youtube\backend\output\3f01406d-72e9-44bf-b6d4-54c369365c37\720p_%03d.ts D:\project\personal\youtube\backend\output\3f01406d-72e9-44bf-b6d4-54c369365c37\720p.m3u8 -acodec aac -vcodec libx264 -filter:v scale=w=1920:h=1080 -b:v 5000k -maxrate:v 5350k -bufsize:v 7500k -hls_time 5 -hls_playlist_type vod -hls_segment_filename D:\project\personal\youtube\backend\output\3f01406d-72e9-44bf-b6d4-54c369365c37\1080p_%03d.ts D:\project\personal\youtube\backend\output\3f01406d-72e9-44bf-b6d4-54c369365c37\1080p.m3u8*/
+      .on("progress", (progress) => {
+        const percent = Math.floor(progress.percent || 0);
+        io.to(folderId).emit("progress", { percent });
+      })
       .on("end", () => {
-        console.log("Transcoding complete.");
-
         // Generate the master.m3u8 file
         const masterPlaylistPath = path.join(outputPath, "master.m3u8");
         const masterPlaylistContent = qualities
@@ -116,7 +160,17 @@ export const uploadVideo = (req, res) => {
           masterPlaylistPath,
           masterPlaylistHeader + masterPlaylistContent
         );
-
+        
+        io.to(folderId).emit("completed", { 
+          duration: duration.formatted,
+          durationDetails: {
+            hours: duration.hours,
+            minutes: duration.minutes,
+            seconds: duration.seconds,
+            rawSeconds: duration
+          }
+        });
+        
         // Clean up the uploaded file
         fs.rm(req.file.path, { recursive: true, force: true }, (err) => {
           if (err) {
@@ -125,12 +179,19 @@ export const uploadVideo = (req, res) => {
             console.log("Uploaded file deleted successfully.");
           }
         });
-
+        
         res.status(200).json({
           success: true,
           message:
             "Video transcoding complete. Check the output folder for HLS files.",
           id: folderId, // Provide the folderId for retrieval
+          duration: duration.formatted,
+          durationDetails: {
+            hours: duration.hours,
+            minutes: duration.minutes,
+            seconds: duration.seconds,
+            rawSeconds: duration
+          }
         });
       })
       .on("error", (err) => {
@@ -182,7 +243,9 @@ export const get_video = async (req, res) => {
 export const get_m3u8 = async (req, res) => {
   try {
     const videoId = req.params.id;
+    console.log("videoId", videoId);
     const fileName = req.params.filename;  // Handle different file names dynamically
+    console.log("videoId", videoId);
 
     const videoPath = path.join(outputDir, videoId, "master.m3u8");
 
@@ -190,7 +253,7 @@ export const get_m3u8 = async (req, res) => {
       const contentType = mime.getType(videoPath) || 'application/octet-stream';
 
       res.setHeader('Content-Type', contentType);
-      res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+      res.setHeader('Access-Control-Allow-Origin', `${process.env.CLINT_URL}${process.env.PORT}`);
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 

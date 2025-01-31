@@ -49,8 +49,16 @@ export const uploadVideo = (req, res) => {
     try {
       const metadata = await new Promise((resolve, reject) => {
         ffmpeg.ffprobe(req.file.path, (err, metadata) => {
-          if (err) reject(err);
-          else resolve(metadata);
+          if (err) {
+            console.error("FFprobe error:", err);
+            if (err.message.includes("Cannot find ffprobe")) {
+              reject(new Error("FFmpeg/FFprobe is not installed. Please install FFmpeg with FFprobe."));
+            } else {
+              reject(err);
+            }
+          } else {
+            resolve(metadata);
+          }
         });
       });
       
@@ -59,9 +67,13 @@ export const uploadVideo = (req, res) => {
       console.log("Video duration:", duration.formatted);
     } catch (error) {
       console.error("Error getting video metadata:", error);
+      // Clean up uploaded file
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error("Error deleting uploaded file:", unlinkErr);
+      });
       return res.status(500).json({
         success: false,
-        message: "Error getting video metadata",
+        message: error.message || "Error getting video metadata",
       });
     }
 
@@ -299,8 +311,16 @@ export const uploadVideoWithoutSocket = (req, res) => {
     try {
       const metadata = await new Promise((resolve, reject) => {
         ffmpeg.ffprobe(req.file.path, (err, metadata) => {
-          if (err) reject(err);
-          else resolve(metadata);
+          if (err) {
+            console.error("FFprobe error:", err);
+            if (err.message.includes("Cannot find ffprobe")) {
+              reject(new Error("FFmpeg/FFprobe is not installed. Please install FFmpeg with FFprobe."));
+            } else {
+              reject(err);
+            }
+          } else {
+            resolve(metadata);
+          }
         });
       });
       
@@ -309,9 +329,13 @@ export const uploadVideoWithoutSocket = (req, res) => {
       console.log("Video duration:", duration.formatted);
     } catch (error) {
       console.error("Error getting video metadata:", error);
+      // Clean up uploaded file
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error("Error deleting uploaded file:", unlinkErr);
+      });
       return res.status(500).json({
         success: false,
-        message: "Error getting video metadata",
+        message: error.message || "Error getting video metadata",
       });
     }
 
